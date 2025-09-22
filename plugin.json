@@ -1,37 +1,26 @@
 {
-  "name": "plugin-sample-vite-solidjs",
-  "author": "frostime",
-  "url": "https://github.com/frostime/plugin-sample-vite-solidjs",
-  "version": "0.3.6",
+  "name": "siyuan-typst-plugin",
+  "author": "Clouder0",
+  "url": "https://github.com/clouder0/siyuan-typst-plugin",
+  "version": "0.0.1",
   "minAppVersion": "3.0.12",
   "disabledInPublish": true,
-  "backends": [
-    "all"
-  ],
-  "frontends": [
-    "all"
-  ],
+  "backends": ["all"],
+  "frontends": ["all"],
   "displayName": {
-    "en_US": "Plugin sample with vite and solidjs",
-    "zh_CN": "插件样例 vite + solidjs 版"
+    "en_US": "Typst Plugin",
+    "zh_CN": "Typst 插件"
   },
   "description": {
-    "en_US": "SiYuan plugin sample with vite and solidjs",
-    "zh_CN": "使用 vite 和 solidjs 开发的思源插件样例"
+    "en_US": "Use Typst for Inline Math and Math Block in SiYuan.",
+    "zh_CN": "使用 Typst 在 SiYuan 中编写数学公式。"
   },
   "readme": {
     "en_US": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
   "funding": {
-    "custom": [
-      ""
-    ]
+    "custom": [""]
   },
-  "keywords": [
-    "plugin",
-    "sample",
-    "插件样例",
-    "solidjs"
-  ]
+  "keywords": ["typst"]
 }

@@ -1,19 +1,19 @@
 {
-  "name": "plugin-sample-vite-solidjs",
-  "version": "0.3.6",
+  "name": "siyuan-typst-plugin",
+  "version": "0.0.1",
   "type": "module",
-  "description": "This is a sample plugin based on vite and solidjs for Siyuan (https://b3log.org/siyuan)",
-  "repository": "",
-  "homepage": "",
-  "author": "frostime",
+  "description": "Use Typst for Inline Math and Math Block in Siyuan.",
+  "repository": "https://github.com/clouder0/siyuan-typst-plugin",
+  "homepage": "https://github.com/clouder0/siyuan-typst-plugin",
+  "author": "Clouder0",
   "license": "GPL-3.0-only",
   "scripts": {
     "dev": "cross-env NODE_ENV=development VITE_SOURCEMAP=inline vite build --watch",
     "build": "cross-env NODE_ENV=production vite build",
-    "make-link": "npx make-link",
-    "make-link-win": "npx make-lin-win",
-    "update-version": "npx update-version",
-    "make-install": "pnpm run build && npx make-install"
+    "make-link": "bunx make-link",
+    "make-link-win": "bunx make-lin-win",
+    "update-version": "bunx update-version",
+    "make-install": "bun run build && bunx make-install"
   },
   "devDependencies": {
     "@types/node": "^20.3.0",
@@ -34,5 +34,15 @@
     "vite-plugin-solid": "^2.10.2",
     "vite-plugin-static-copy": "^1.0.5",
     "vite-plugin-zip-pack": "^1.2.2"
+  },
+  "trustedDependencies": [
+    "@parcel/watcher"
+  ],
+  "dependencies": {
+    "@myriaddreamin/typst-all-in-one.ts": "^0.6.1-rc3",
+    "@myriaddreamin/typst.ts": "^0.6.1-rc3",
+    "node-object-hash": "^3.1.1",
+    "vite-plugin-node-polyfills": "^0.24.0",
+    "vite-plugin-node-stdlib-browser": "^0.2.1"
   }
 }

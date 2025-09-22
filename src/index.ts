@@ -4,48 +4,290 @@
  * @Date         : 2024-06-12 19:48:53
  * @FilePath     : /src/index.ts
  * @LastEditTime : 2024-07-12 18:25:44
- * @Description  : 
+ * @Description  :
  */
-import {
-    Plugin,
-    Constants
-} from "siyuan";
+import { Plugin, Constants } from "siyuan";
 import "@/index.scss";
-
-import Hello from './hello';
+import Hello from "./hello";
 import SettingExample from "@/setting-example";
 
 import type {} from "solid-styled-jsx";
 import { solidDialog } from "./libs/dialog";
+import SimpleHash from "./hash";
+import {
+  createTypstCompiler,
+  TypstCompiler,
+} from "@myriaddreamin/typst.ts/dist/esm/compiler.mjs";
+import {
+  createTypstRenderer,
+  TypstRenderer,
+} from "@myriaddreamin/typst.ts/dist/esm/renderer.mjs";
+import { preloadFontAssets } from "@myriaddreamin/typst.ts/dist/esm/options.init.mjs";
 
+export default class TypstPlugin extends Plugin {
+  async onload() {
+    this.addTopBar({
+      icon: "iconEmoji",
+      title: "Test reload ",
+      callback: () => {
+        this.showHelloDialog();
+      },
+    });
 
-export default class PluginSample extends Plugin {
+    console.log("On Load");
 
+    const decode = (encodedString: string) => {
+      return encodedString
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&");
+    };
 
-    async onload() {
-        this.addTopBar({
-            icon: 'iconEmoji',
-            title: 'Test Solidjs',
-            callback: () => {
-                this.showHelloDialog();
-            }
+    // $typst.setCompilerInitOptions({
+    //   getModule: () =>
+    //     "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm",
+    // });
+    // $typst.setRendererInitOptions({
+    //   getModule: () =>
+    //     "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm",
+    // });
+    // const _compiler = $typst.getCompiler();
+    // const _renderer = $typst.getRenderer();
+    // const [compiler, renderer] = await Promise.all([_compiler, _renderer]);
+    const randstr = (prefix?: string) => {
+      return Math.random()
+        .toString(36)
+        .replace("0.", prefix || "");
+    };
+
+    let context = {
+      compiler: createTypstCompiler(),
+      renderer: createTypstRenderer(),
+    };
+
+    const init_context = async ({ compiler, renderer }) => {
+      await Promise.all([
+        compiler.init({
+          getModule: () =>
+            "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm",
+          beforeBuild: [preloadFontAssets()],
+        }),
+        renderer.init({
+          getModule: () =>
+            "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm",
+        }),
+      ]);
+    };
+    let _backup_context: {
+      compiler: TypstCompiler;
+      renderer: TypstRenderer;
+    } = {
+      compiler: createTypstCompiler(),
+      renderer: createTypstRenderer(),
+    };
+    await init_context(_backup_context);
+    const get_backup_context = async () => {
+      const res = {
+        compiler: _backup_context.compiler,
+        renderer: _backup_context.renderer,
+      };
+      _backup_context.compiler = createTypstCompiler();
+      _backup_context.renderer = createTypstRenderer();
+      await init_context(_backup_context);
+      return res;
+    };
+    await init_context(context);
+    const protyle_observer_map = new Map<object, MutationObserver>();
+    let current_parsed = 0;
+    const render_once = async (element: HTMLElement) => {
+      const raw_content = element.getAttribute("data-content");
+      const is_typst =
+        raw_content.startsWith("\\t{") && raw_content.endsWith("}");
+      if (!is_typst) return;
+      const typst_content = decode(raw_content.slice(3, -1));
+      const content_hash = SimpleHash.djb2(typst_content)
+        .toString()
+        .slice(0, 16);
+      if (element.getAttribute("data-render-typst") === content_hash) return;
+      const first_time = element.getAttribute("data-render-typst") === null;
+      element.setAttribute("data-render-typst", content_hash);
+      // console.log("Typst Block Detected: ", typst_content);
+      const inlineMathTemplate = `
+        #set page(height: auto, width: auto, margin: 0pt)
+        #set text(size: 13pt)
+
+        #let s = state("t", (:))
+
+        #let pin(t) = context {
+        let width = measure(line(length: here().position().y)).width
+        s.update(it => it.insert(t, width) + it)
+        }
+
+        #show math.equation: it => {
+        box(it, inset: (top: 0.5em, bottom: 0.5em))
+        }
+
+        $pin("l1")${typst_content}$
+
+        #context [
+        #metadata(s.final().at("l1")) <label>
+        ]
+        `;
+      const start = performance.now();
+      const dest = `/tmp/${randstr()}.typ`;
+      current_parsed += 1;
+      if (current_parsed >= 100) {
+        console.log("Switch to backup compiler!");
+        current_parsed = 0;
+        const backup = await get_backup_context();
+        context.compiler = backup.compiler;
+        context.renderer = backup.renderer;
+      }
+      const compiler = context.compiler;
+      const renderer = context.renderer;
+      compiler.addSource(dest, inlineMathTemplate);
+      const result = await compiler.compile({
+        mainFilePath: dest,
+        diagnostics: "full",
+      });
+      const shadowRoot = first_time
+        ? element.attachShadow({ mode: "open" })
+        : element.shadowRoot;
+      if (result.diagnostics) {
+        // render error! show it directly
+        const error_string = Array.from(result.diagnostics.values())
+          .map(
+            (error) =>
+              `[${error.severity}]<${error.package}, ${error.path}, ${error.range}>: ${error.message}`,
+          )
+          .join("\n");
+        shadowRoot.innerHTML = `<div style="color: red;">${error_string}</div>`;
+      }
+      const vec = result.result!;
+      const svg = await renderer.runWithSession(async (session) => {
+        renderer.manipulateData({
+          renderSession: session,
+          action: "reset",
+          data: vec,
+        });
+        const svg = await renderer.renderSvg({
+          renderSession: session,
+        });
+        return svg;
+      });
+      const query = await compiler.query({
+        selector: "<label>",
+        mainFilePath: dest,
+      });
+      // parse baselinePosition from query ignore last 2 chars
+      const baselinePosition = parseFloat(query[0].value.slice(0, -2));
+      compiler.unmapShadow(dest);
+      shadowRoot.innerHTML = svg;
+      const svgElem = shadowRoot.firstElementChild;
+      const width = Number.parseFloat(svgElem.getAttribute("data-width"));
+      const height = Number.parseFloat(svgElem.getAttribute("data-height"));
+      const defaultEm = 11;
+      const shift = height - baselinePosition;
+      const shiftEm = shift / defaultEm;
+      svgElem.firstElementChild.innerHTML =
+        `path {fill: var(--b3-graph-doc-point); stroke: var(--b3-graph-doc-point);}` +
+        svgElem.firstElementChild.innerHTML
+          .replace("var(--glyph_fill)", "var(--b3-graph-doc-point)")
+          .replace("var(--glyph_stroke)", "var(--b3-graph-doc-point)");
+      svgElem.setAttribute("style", `vertical-align: -${shiftEm}em;`);
+      svgElem.setAttribute("width", `${width / defaultEm}em`);
+      svgElem.setAttribute("height", `${height / defaultEm}em`);
+      const end = performance.now();
+      // console.log(
+      //   // "Rendered.",
+      //   // typst_content,
+      //   "takes",
+      //   end - start,
+      //   "ms",
+      // );
+    };
+    this.eventBus.on("loaded-protyle-static", (event) => {
+      const p = event.detail.protyle;
+      Promise.allSettled(
+        Array.from(
+          p.contentElement.querySelectorAll("span[data-type='inline-math']"),
+        ).map(render_once),
+      )
+        .then(() => {
+          // console.log("Init render done.", results);
         })
-    }
-
-    showHelloDialog() {
-        solidDialog({
-            title: `SiYuan ${Constants.SIYUAN_VERSION}`,
-            width: "720px",
-            loader: () => Hello({app: this.app}),
+        .catch((e) => {
+          console.log(e);
         });
-    }
+      const observer = new MutationObserver((mutations) => {
+        Promise.allSettled(
+          Array.from(mutations.values())
+            .filter(
+              (mutation) =>
+                mutation.type === "childList" &&
+                mutation.target.nodeType === Node.ELEMENT_NODE,
+            )
+            .map((mutation) => mutation.target as HTMLElement)
+            .filter(
+              (element) => element.getAttribute("data-type") === "inline-math",
+            )
+            .map(render_once),
+        )
+          .then((results) => {
+            Array.from(results)
+              .filter((result) => result.status === "rejected")
+              .forEach((result) => {
+                console.log("Rejected!", result.reason);
+              });
+          })
+          .catch((e) => {
+            console.log("Error allSettled", e);
+          });
+      });
+      observer.observe(p.contentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["data-content"],
+      });
+      console.log("observer created");
+      protyle_observer_map.set(p, observer);
+    });
+    this.eventBus.on("destroy-protyle", (event) => {
+      const p = event.detail.protyle;
+      const observer = protyle_observer_map.get(p);
+      if (observer) {
+        observer.disconnect();
+        protyle_observer_map.delete(p);
+        console.log("observer disconnected");
+      }
+      console.log(`Destroy Protyle. id: ${p.id}, block id: ${p.block.id}`);
+    });
 
-    openSetting(): void {
-        solidDialog({
-            title: "SettingPannel",
-            loader: () => SettingExample({}),
-            width: "800px",
-            height: "600px"
-        });
-    }
+    this.eventBus.on("loaded-protyle-dynamic", (event) => {
+      const p = event.detail.protyle;
+      console.log(`Load Protyle Dynamic. id: ${p.id}, block id: ${p.block.id}`);
+    });
+  }
+
+  onLayoutReady(): void {}
+
+  showHelloDialog() {
+    solidDialog({
+      title: `SiYuan ${Constants.SIYUAN_VERSION}`,
+      width: "720px",
+      loader: () => Hello({ app: this.app }),
+    });
+  }
+
+  openSetting(): void {
+    solidDialog({
+      title: "SettingPannel",
+      loader: () => SettingExample({}),
+      width: "800px",
+      height: "600px",
+    });
+  }
 }
