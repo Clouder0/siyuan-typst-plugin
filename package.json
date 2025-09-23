@@ -1,6 +1,6 @@
 {
   "name": "siyuan-typst-plugin",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "type": "module",
   "description": "Use Typst for Inline Math and Math Block in Siyuan.",
   "repository": "https://github.com/clouder0/siyuan-typst-plugin",
@@ -42,6 +42,7 @@
     "@myriaddreamin/typst-all-in-one.ts": "^0.6.1-rc3",
     "@myriaddreamin/typst.ts": "^0.6.1-rc3",
     "node-object-hash": "^3.1.1",
+    "quick-lru": "^7.2.0",
     "vite-plugin-node-polyfills": "^0.24.0",
     "vite-plugin-node-stdlib-browser": "^0.2.1"
   }

@@ -17,6 +17,7 @@ import {
   TypstRenderer,
 } from "@myriaddreamin/typst.ts/dist/esm/renderer.mjs";
 import { preloadFontAssets } from "@myriaddreamin/typst.ts/dist/esm/options.init.mjs";
+import QuickLRU from "quick-lru";
 
 export default class TypstPlugin extends Plugin {
   async onload() {
@@ -34,6 +35,8 @@ export default class TypstPlugin extends Plugin {
         .toString(36)
         .replace("0.", prefix || "");
     };
+
+    const lru_cache = new QuickLRU<string, string>({ maxSize: 1024 });
 
     let context = {
       compiler: createTypstCompiler(),
@@ -99,13 +102,25 @@ export default class TypstPlugin extends Plugin {
       )
         return;
       element.setAttribute("data-render-typst", content_hash);
+      if (first_time) {
+        const container = document.createElement("div");
+        element.firstElementChild.replaceChildren(container);
+        container.attachShadow({
+          mode: "open",
+        });
+      }
+      const shadowRoot = element.firstElementChild.firstElementChild.shadowRoot;
+      if (lru_cache.has(content_hash)) {
+        shadowRoot.innerHTML = lru_cache.get(content_hash);
+        return;
+      }
 
       const displayMathTemplate = `
-        #set page(height: auto, width: auto, margin: 0pt)
-        #set text(size: 13pt)
+             #set page(height: auto, width: auto, margin: 0pt)
+             #set text(size: 13pt)
 
-        $ ${typst_content} $
-        `;
+             $ ${typst_content} $
+             `;
       const dest = `/tmp/${randstr()}.typ`;
       current_parsed += 1;
       if (current_parsed >= 100) {
@@ -122,15 +137,6 @@ export default class TypstPlugin extends Plugin {
         mainFilePath: dest,
         diagnostics: "full",
       });
-      if (first_time) {
-        const container = document.createElement("div");
-        element.firstElementChild.replaceChildren(container);
-        container.attachShadow({
-          mode: "open",
-        });
-      }
-      const shadowRoot = element.firstElementChild.firstElementChild.shadowRoot;
-      console.log("shadow root", shadowRoot);
       if (result.diagnostics) {
         // render error! show it directly
         const error_string = Array.from(result.diagnostics.values())
@@ -169,6 +175,7 @@ export default class TypstPlugin extends Plugin {
       // svgElem.setAttribute("style", "; display: block; margin: 0 auto;");
       svgElem.setAttribute("style", "margin: 0 auto;display:block;");
       svgElem.setAttribute("height", `${height / defaultEm}em`);
+      lru_cache.set(content_hash, shadowRoot.innerHTML);
     };
     const render_inline_once = async (element: HTMLElement) => {
       // console.log("inline", element);
@@ -195,6 +202,17 @@ export default class TypstPlugin extends Plugin {
       )
         return;
       element.setAttribute("data-render-typst", content_hash);
+      if (first_time) {
+        const container = document.createElement("span");
+        container.setAttribute("class", "typst-display");
+        element.replaceChildren(container);
+        container.attachShadow({ mode: "open" });
+      }
+      const shadowRoot = element.firstElementChild.shadowRoot;
+      if (lru_cache.has(content_hash)) {
+        shadowRoot.innerHTML = lru_cache.get(content_hash);
+        return;
+      }
       const inlineMathTemplate = `
         #set page(height: auto, width: auto, margin: 0pt)
         #set text(size: 13pt)
@@ -232,13 +250,6 @@ export default class TypstPlugin extends Plugin {
         mainFilePath: dest,
         diagnostics: "full",
       });
-      if (first_time) {
-        const container = document.createElement("span");
-        container.setAttribute("class", "typst-display");
-        element.replaceChildren(container);
-        container.attachShadow({ mode: "open" });
-      }
-      const shadowRoot = element.firstElementChild.shadowRoot;
       if (result.diagnostics) {
         // render error! show it directly
         const error_string = Array.from(result.diagnostics.values())
@@ -248,6 +259,8 @@ export default class TypstPlugin extends Plugin {
           )
           .join("\n");
         shadowRoot.innerHTML = `<div style="color: red;">${error_string}</div>`;
+        lru_cache.set(content_hash, shadowRoot.innerHTML);
+        return;
       }
       const vec = result.result!;
       const svg = await renderer.runWithSession(async (session) => {
@@ -283,6 +296,7 @@ export default class TypstPlugin extends Plugin {
       svgElem.setAttribute("style", `vertical-align: -${shiftEm}em;`);
       svgElem.setAttribute("width", `${width / defaultEm}em`);
       svgElem.setAttribute("height", `${height / defaultEm}em`);
+      lru_cache.set(content_hash, shadowRoot.innerHTML);
     };
     this.eventBus.on("loaded-protyle-static", (event) => {
       const p = event.detail.protyle;
