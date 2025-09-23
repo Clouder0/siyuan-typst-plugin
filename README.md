@@ -18,4 +18,4 @@ integral _1 ^n 1 / x "d" x  = ln n
 
 You'll get:
 
-![Showcase](./assets/typst_showcase.png)
+![Showcase](./asset/typst_showcase.png)

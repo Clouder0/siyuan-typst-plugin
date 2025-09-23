@@ -15,4 +15,4 @@ mat(a,b,c;d,e,f;) + mat(1,2,3;4,5,6) \
 
 例子：
 
-![Showcase](./assets/typst_showcase.png)
+![Showcase](./asset/typst_showcase.png)
