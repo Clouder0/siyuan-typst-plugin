@@ -75,16 +75,29 @@ export default class TypstPlugin extends Plugin {
     const protyle_observer_map = new Map<object, MutationObserver>();
     let current_parsed = 0;
     const render_block_once = async (element: HTMLElement) => {
+      // console.log("block", element);
       const raw_content = element.getAttribute("data-content");
       const is_typst =
         raw_content.startsWith("\\t{") && raw_content.endsWith("}");
-      if (!is_typst) return;
+      if (!is_typst) {
+        if (element.getAttribute("data-render-typst") !== null) {
+          // remove previous typst content
+          element.removeAttribute("data-render-typst");
+          element.firstElementChild.innerHTML = "";
+        }
+        return;
+      }
       const typst_content = decode(raw_content.slice(3, -1));
       const content_hash = SimpleHash.djb2(typst_content)
         .toString()
         .slice(0, 16);
-      if (element.getAttribute("data-render-typst") === content_hash) return;
-      const first_time = element.getAttribute("data-render-typst") === null;
+      const first_time =
+        element.firstElementChild.firstElementChild?.shadowRoot === null;
+      if (
+        !first_time &&
+        element.getAttribute("data-render-typst") === content_hash
+      )
+        return;
       element.setAttribute("data-render-typst", content_hash);
 
       const displayMathTemplate = `
@@ -96,7 +109,7 @@ export default class TypstPlugin extends Plugin {
       const dest = `/tmp/${randstr()}.typ`;
       current_parsed += 1;
       if (current_parsed >= 100) {
-        console.log("Switch to backup compiler!");
+        // console.log("Switch to backup compiler!");
         current_parsed = 0;
         const backup = await get_backup_context();
         context.compiler = backup.compiler;
@@ -109,11 +122,15 @@ export default class TypstPlugin extends Plugin {
         mainFilePath: dest,
         diagnostics: "full",
       });
-      const shadowRoot = first_time
-        ? element.firstElementChild.attachShadow({
-            mode: "open",
-          })
-        : element.firstElementChild.shadowRoot;
+      if (first_time) {
+        const container = document.createElement("div");
+        container.innerHTML = "<div style='color: red;'>Loading...</div>";
+        element.firstElementChild.replaceChildren(container);
+        container.attachShadow({
+          mode: "open",
+        });
+      }
+      const shadowRoot = element.firstElementChild.firstElementChild.shadowRoot;
       if (result.diagnostics) {
         // render error! show it directly
         const error_string = Array.from(result.diagnostics.values())
@@ -154,16 +171,29 @@ export default class TypstPlugin extends Plugin {
       svgElem.setAttribute("height", `${height / defaultEm}em`);
     };
     const render_inline_once = async (element: HTMLElement) => {
+      // console.log("inline", element);
       const raw_content = element.getAttribute("data-content");
       const is_typst =
         raw_content.startsWith("\\t{") && raw_content.endsWith("}");
-      if (!is_typst) return;
+      if (!is_typst) {
+        if (element.getAttribute("data-render-typst") !== null) {
+          // clear previous typst content
+          element.removeAttribute("data-render-typst");
+          // remove shadow root
+          element.removeChild(element.firstElementChild);
+        }
+        return;
+      }
       const typst_content = decode(raw_content.slice(3, -1));
       const content_hash = SimpleHash.djb2(typst_content)
         .toString()
         .slice(0, 16);
-      if (element.getAttribute("data-render-typst") === content_hash) return;
-      const first_time = element.getAttribute("data-render-typst") === null;
+      const first_time = !element.firstElementChild?.shadowRoot; // on paste, hash doesn't change but shadow root won't be copied, so re-render
+      if (
+        !first_time &&
+        element.getAttribute("data-render-typst") === content_hash
+      )
+        return;
       element.setAttribute("data-render-typst", content_hash);
       const inlineMathTemplate = `
         #set page(height: auto, width: auto, margin: 0pt)
@@ -202,9 +232,14 @@ export default class TypstPlugin extends Plugin {
         mainFilePath: dest,
         diagnostics: "full",
       });
-      const shadowRoot = first_time
-        ? element.attachShadow({ mode: "open" })
-        : element.shadowRoot;
+      if (first_time) {
+        const container = document.createElement("span");
+        container.setAttribute("class", "typst-display");
+        element.replaceChildren(container);
+        container.attachShadow({ mode: "open" });
+      }
+      const shadowRoot = element.firstElementChild.shadowRoot;
+      console.log(element);
       if (result.diagnostics) {
         // render error! show it directly
         const error_string = Array.from(result.diagnostics.values())
@@ -252,53 +287,79 @@ export default class TypstPlugin extends Plugin {
     };
     this.eventBus.on("loaded-protyle-static", (event) => {
       const p = event.detail.protyle;
-      Promise.allSettled(
-        Array.from(
-          p.contentElement.querySelectorAll("span[data-type='inline-math']"),
-        ).map(render_inline_once),
-      )
-        .then(() => {
-          // console.log("Init render done.", results);
-        })
-        .catch((e) => {
-          console.log(e);
-        });
       const observer = new MutationObserver((mutations) => {
-        const elements = Array.from(mutations.values())
-          .filter(
-            (mutation) =>
-              mutation.type === "childList" &&
-              mutation.target.nodeType === Node.ELEMENT_NODE,
+        // console.log("Observed mutations:", mutations.length);
+        const mut_elems = mutations.filter(
+          (m) => m.target.nodeType === Node.ELEMENT_NODE,
+        );
+        // paste operation
+        const added_elems = mut_elems
+          .filter((m) =>
+            (m.target as HTMLElement).classList.contains("protyle-wysiwyg"),
           )
-          .map((mutation) => mutation.target as HTMLElement);
-        Promise.allSettled(
-          elements
-            .filter(
-              (element) => element.getAttribute("data-type") === "inline-math",
-            )
-            .map(render_inline_once)
-            .concat(
-              elements
-                .filter((element) => element.parentElement !== null)
-                .map((element) => element.parentElement)
-                .filter(
-                  (element) =>
-                    element.getAttribute("data-type") === "NodeMathBlock",
+          .map((m) => Array.from(m.addedNodes.values()))
+          .flat()
+          .filter((n) => n.nodeType === Node.ELEMENT_NODE)
+          .map((n) => n as HTMLElement);
+        const added_inline_elems = added_elems
+          .map((e) =>
+            Array.from(
+              e
+                .querySelectorAll(
+                  `span[data-type='inline-math'][data-content^='\\\\t{'][data-content$='}']`,
                 )
-                .map((element) => render_block_once(element)),
-            )
-            .concat(
-              elements
-                .filter(
-                  (element) => element.parentElement?.parentElement !== null,
-                )
-                .map((element) => element.parentElement.parentElement)
-                .filter(
-                  (element) =>
-                    element.getAttribute("data-type") === "NodeMathBlock",
-                )
-                .map((element) => render_block_once(element)),
+                .values(),
             ),
+          )
+          .flat() as HTMLElement[];
+        const added_block_elems = added_elems
+          .map((e) =>
+            Array.from(
+              e
+                .querySelectorAll(
+                  "div[data-type='NodeMathBlock'][data-content^='\\\\t{'][data-content$='}']",
+                )
+                .values(),
+            ),
+          )
+          .flat() as HTMLElement[];
+        const elements = Array.from(
+          new Set(
+            mutations
+              .filter(
+                (mutation) =>
+                  mutation.type === "childList" &&
+                  mutation.target.nodeType === Node.ELEMENT_NODE,
+              )
+              .map((mutation) => mutation.target as HTMLElement),
+          ),
+        );
+        const normal_inline = elements.filter(
+          (elem) => elem.getAttribute("data-type") === "inline-math",
+        );
+        const normal_first_block = elements
+          .filter((element) => element.parentElement !== null)
+          .map((element) => element.parentElement)
+          .filter(
+            (element) => element.getAttribute("data-type") === "NodeMathBlock",
+          );
+        const normal_second_block = elements
+          .filter((element) => element.parentElement !== null)
+          .filter((element) => element.parentElement.parentElement !== null)
+          .map((element) => element.parentElement.parentElement)
+          .filter(
+            (element) => element.getAttribute("data-type") === "NodeMathBlock",
+          );
+        const final_inline = new Set(normal_inline.concat(added_inline_elems));
+        const final_block = new Set(
+          normal_first_block
+            .concat(normal_second_block)
+            .concat(added_block_elems),
+        );
+        Promise.allSettled(
+          Array.from(final_inline)
+            .map(render_inline_once)
+            .concat(Array.from(final_block).map(render_block_once)),
         )
           .then((results) => {
             Array.from(results)
@@ -317,7 +378,7 @@ export default class TypstPlugin extends Plugin {
         attributes: true,
         attributeFilter: ["data-content"],
       });
-      console.log("observer created");
+      // console.log("observer created");
       protyle_observer_map.set(p, observer);
     });
     this.eventBus.on("destroy-protyle", (event) => {
@@ -326,9 +387,9 @@ export default class TypstPlugin extends Plugin {
       if (observer) {
         observer.disconnect();
         protyle_observer_map.delete(p);
-        console.log("observer disconnected");
+        // console.log("observer disconnected");
       }
-      console.log(`Destroy Protyle. id: ${p.id}, block id: ${p.block.id}`);
+      // console.log(`Destroy Protyle. id: ${p.id}, block id: ${p.block.id}`);
     });
   }
 }
