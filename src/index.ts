@@ -124,13 +124,13 @@ export default class TypstPlugin extends Plugin {
       });
       if (first_time) {
         const container = document.createElement("div");
-        container.innerHTML = "<div style='color: red;'>Loading...</div>";
         element.firstElementChild.replaceChildren(container);
         container.attachShadow({
           mode: "open",
         });
       }
       const shadowRoot = element.firstElementChild.firstElementChild.shadowRoot;
+      console.log("shadow root", shadowRoot);
       if (result.diagnostics) {
         // render error! show it directly
         const error_string = Array.from(result.diagnostics.values())
@@ -154,9 +154,9 @@ export default class TypstPlugin extends Plugin {
         return svg;
       });
       compiler.unmapShadow(dest);
-      shadowRoot.innerHTML = `<span class='katex-display'>${svg}</span>`;
+      shadowRoot.innerHTML = svg;
       element.firstElementChild.setAttribute("class", "katex-display");
-      const svgElem = shadowRoot.firstElementChild.firstElementChild;
+      const svgElem = shadowRoot.firstElementChild;
       const width = Number.parseFloat(svgElem.getAttribute("data-width"));
       const height = Number.parseFloat(svgElem.getAttribute("data-height"));
       const defaultEm = 11;
@@ -288,6 +288,7 @@ export default class TypstPlugin extends Plugin {
       const p = event.detail.protyle;
       const observer = new MutationObserver((mutations) => {
         // console.log("Observed mutations:", mutations.length);
+        console.log(mutations);
         const mut_elems = mutations.filter(
           (m) => m.target.nodeType === Node.ELEMENT_NODE,
         );
@@ -311,14 +312,12 @@ export default class TypstPlugin extends Plugin {
             ),
           )
           .flat() as HTMLElement[];
+
+        const block_selector = `div.render-node[data-type='NodeMathBlock'][data-content^='\\\\t{'][data-content$='}']`;
         const added_block_elems = added_elems
           .map((e) =>
-            Array.from(
-              e
-                .querySelectorAll(
-                  "div[data-type='NodeMathBlock'][data-content^='\\\\t{'][data-content$='}']",
-                )
-                .values(),
+            Array.from(e.querySelectorAll(block_selector).values()).concat(
+              e.matches(block_selector) ? [e] : [],
             ),
           )
           .flat() as HTMLElement[];
