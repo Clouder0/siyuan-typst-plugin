@@ -25,3 +25,23 @@ You'll get:
 ## Current Limitations
 
 - Export/Preview and many corner cases are not supported yet.
+
+## Caveats
+
+Typst use Inline Style for inline math, sometimes it may look to small for complex expressions.
+
+You can use `display()` function to wrap your typst content to display block.
+
+Example:
+
+```
+Some sum $\t{sum _(i=0) ^n 1  / i}$ and display sum $\t{display(sum _(i=0) ^n 1  / i)}$, and matrix $\t{display(mat(1,2,3;4,5,6))}$
+```
+
+Versus KaTeX:
+
+```
+Some sum $\sum _{i=0} ^n \frac{1}{i}$ and display sum $\displaystyle \sum _{i=0}^n \frac{1}{i}$, and matrix $\begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}$and display matrix $\displaystyle \begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}$
+```
+
+![Display Style Showcase](./asset/display-style.png)

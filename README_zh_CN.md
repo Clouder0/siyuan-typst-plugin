@@ -24,3 +24,23 @@ mat(a,b,c;d,e,f;) + mat(1,2,3;4,5,6) \
 ## Current Limitations
 
 - 导出/预览等各种渲染显示场景未适配。
+
+## Caveats
+
+Typst 为行内公式使用 Inline Style，复杂的公式会显得太小。
+
+你可以使用 `display()` 来渲染复杂公式。
+
+例如：
+
+```
+Some sum $\t{sum _(i=0) ^n 1  / i}$ and display sum $\t{display(sum _(i=0) ^n 1  / i)}$, and matrix $\t{display(mat(1,2,3;4,5,6))}$
+```
+
+Versus KaTeX:
+
+```
+Some sum $\sum _{i=0} ^n \frac{1}{i}$ and display sum $\displaystyle \sum _{i=0}^n \frac{1}{i}$, and matrix $\begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}$and display matrix $\displaystyle \begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}$
+```
+
+![Display Style Showcase](./asset/display-style.png)
