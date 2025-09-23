@@ -239,7 +239,6 @@ export default class TypstPlugin extends Plugin {
         container.attachShadow({ mode: "open" });
       }
       const shadowRoot = element.firstElementChild.shadowRoot;
-      console.log(element);
       if (result.diagnostics) {
         // render error! show it directly
         const error_string = Array.from(result.diagnostics.values())
