@@ -28,16 +28,16 @@ export default defineConfig({
 
   plugins: [
     // solidPlugin(),
-    solidPlugin({
-      babel: {
-        plugins: ["solid-styled-jsx/babel"],
-      },
-    }),
+    // solidPlugin({
+    //   babel: {
+    //     plugins: ["solid-styled-jsx/babel"],
+    //   },
+    // }),
 
-    vitePluginYamlI18n({
-      inDir: "public/i18n",
-      outDir: `${outputDir}/i18n`,
-    }),
+    // vitePluginYamlI18n({
+    //   inDir: "public/i18n",
+    //   outDir: `${outputDir}/i18n`,
+    // }),
 
     viteStaticCopy({
       targets: [
@@ -45,7 +45,6 @@ export default defineConfig({
         { src: "./plugin.json", dest: "./" },
         { src: "./preview.png", dest: "./" },
         { src: "./icon.png", dest: "./" },
-        { src: "./deps", dest: "./" },
       ],
     }),
   ],

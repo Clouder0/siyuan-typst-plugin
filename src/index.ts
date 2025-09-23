@@ -6,13 +6,7 @@
  * @LastEditTime : 2024-07-12 18:25:44
  * @Description  :
  */
-import { Plugin, Constants } from "siyuan";
-import "@/index.scss";
-import Hello from "./hello";
-import SettingExample from "@/setting-example";
-
-import type {} from "solid-styled-jsx";
-import { solidDialog } from "./libs/dialog";
+import { Plugin } from "siyuan";
 import SimpleHash from "./hash";
 import {
   createTypstCompiler,
@@ -26,16 +20,6 @@ import { preloadFontAssets } from "@myriaddreamin/typst.ts/dist/esm/options.init
 
 export default class TypstPlugin extends Plugin {
   async onload() {
-    this.addTopBar({
-      icon: "iconEmoji",
-      title: "Test reload ",
-      callback: () => {
-        this.showHelloDialog();
-      },
-    });
-
-    console.log("On Load");
-
     const decode = (encodedString: string) => {
       return encodedString
         .replace(/&quot;/g, '"')
@@ -45,17 +29,6 @@ export default class TypstPlugin extends Plugin {
         .replace(/&amp;/g, "&");
     };
 
-    // $typst.setCompilerInitOptions({
-    //   getModule: () =>
-    //     "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm",
-    // });
-    // $typst.setRendererInitOptions({
-    //   getModule: () =>
-    //     "https://cdn.jsdelivr.net/npm/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm",
-    // });
-    // const _compiler = $typst.getCompiler();
-    // const _renderer = $typst.getRenderer();
-    // const [compiler, renderer] = await Promise.all([_compiler, _renderer]);
     const randstr = (prefix?: string) => {
       return Math.random()
         .toString(36)
@@ -101,7 +74,7 @@ export default class TypstPlugin extends Plugin {
     await init_context(context);
     const protyle_observer_map = new Map<object, MutationObserver>();
     let current_parsed = 0;
-    const render_once = async (element: HTMLElement) => {
+    const render_block_once = async (element: HTMLElement) => {
       const raw_content = element.getAttribute("data-content");
       const is_typst =
         raw_content.startsWith("\\t{") && raw_content.endsWith("}");
@@ -113,7 +86,85 @@ export default class TypstPlugin extends Plugin {
       if (element.getAttribute("data-render-typst") === content_hash) return;
       const first_time = element.getAttribute("data-render-typst") === null;
       element.setAttribute("data-render-typst", content_hash);
-      // console.log("Typst Block Detected: ", typst_content);
+
+      const displayMathTemplate = `
+        #set page(height: auto, width: auto, margin: 0pt)
+        #set text(size: 13pt)
+
+        $ ${typst_content} $
+        `;
+      const dest = `/tmp/${randstr()}.typ`;
+      current_parsed += 1;
+      if (current_parsed >= 100) {
+        console.log("Switch to backup compiler!");
+        current_parsed = 0;
+        const backup = await get_backup_context();
+        context.compiler = backup.compiler;
+        context.renderer = backup.renderer;
+      }
+      const compiler = context.compiler;
+      const renderer = context.renderer;
+      compiler.addSource(dest, displayMathTemplate);
+      const result = await compiler.compile({
+        mainFilePath: dest,
+        diagnostics: "full",
+      });
+      const shadowRoot = first_time
+        ? element.firstElementChild.attachShadow({
+            mode: "open",
+          })
+        : element.firstElementChild.shadowRoot;
+      if (result.diagnostics) {
+        // render error! show it directly
+        const error_string = Array.from(result.diagnostics.values())
+          .map(
+            (error) =>
+              `[${error.severity}]<${error.package}, ${error.path}, ${error.range}>: ${error.message}`,
+          )
+          .join("\n");
+        shadowRoot.innerHTML = `<div style="color: red;">${error_string}</div>`;
+      }
+      const vec = result.result!;
+      const svg = await renderer.runWithSession(async (session) => {
+        renderer.manipulateData({
+          renderSession: session,
+          action: "reset",
+          data: vec,
+        });
+        const svg = await renderer.renderSvg({
+          renderSession: session,
+        });
+        return svg;
+      });
+      compiler.unmapShadow(dest);
+      shadowRoot.innerHTML = `<span class='katex-display'>${svg}</span>`;
+      element.firstElementChild.setAttribute("class", "katex-display");
+      const svgElem = shadowRoot.firstElementChild.firstElementChild;
+      const width = Number.parseFloat(svgElem.getAttribute("data-width"));
+      const height = Number.parseFloat(svgElem.getAttribute("data-height"));
+      const defaultEm = 11;
+      svgElem.firstElementChild.innerHTML =
+        `path {fill: var(--b3-graph-doc-point); stroke: var(--b3-graph-doc-point);}` +
+        svgElem.firstElementChild.innerHTML
+          .replace("var(--glyph_fill)", "var(--b3-graph-doc-point)")
+          .replace("var(--glyph_stroke)", "var(--b3-graph-doc-point)");
+      svgElem.setAttribute("width", `${width / defaultEm}em`);
+      // svgElem.setAttribute("style", "; display: block; margin: 0 auto;");
+      svgElem.setAttribute("style", "margin: 0 auto;display:block;");
+      svgElem.setAttribute("height", `${height / defaultEm}em`);
+    };
+    const render_inline_once = async (element: HTMLElement) => {
+      const raw_content = element.getAttribute("data-content");
+      const is_typst =
+        raw_content.startsWith("\\t{") && raw_content.endsWith("}");
+      if (!is_typst) return;
+      const typst_content = decode(raw_content.slice(3, -1));
+      const content_hash = SimpleHash.djb2(typst_content)
+        .toString()
+        .slice(0, 16);
+      if (element.getAttribute("data-render-typst") === content_hash) return;
+      const first_time = element.getAttribute("data-render-typst") === null;
+      element.setAttribute("data-render-typst", content_hash);
       const inlineMathTemplate = `
         #set page(height: auto, width: auto, margin: 0pt)
         #set text(size: 13pt)
@@ -135,7 +186,6 @@ export default class TypstPlugin extends Plugin {
         #metadata(s.final().at("l1")) <label>
         ]
         `;
-      const start = performance.now();
       const dest = `/tmp/${randstr()}.typ`;
       current_parsed += 1;
       if (current_parsed >= 100) {
@@ -199,21 +249,13 @@ export default class TypstPlugin extends Plugin {
       svgElem.setAttribute("style", `vertical-align: -${shiftEm}em;`);
       svgElem.setAttribute("width", `${width / defaultEm}em`);
       svgElem.setAttribute("height", `${height / defaultEm}em`);
-      const end = performance.now();
-      // console.log(
-      //   // "Rendered.",
-      //   // typst_content,
-      //   "takes",
-      //   end - start,
-      //   "ms",
-      // );
     };
     this.eventBus.on("loaded-protyle-static", (event) => {
       const p = event.detail.protyle;
       Promise.allSettled(
         Array.from(
           p.contentElement.querySelectorAll("span[data-type='inline-math']"),
-        ).map(render_once),
+        ).map(render_inline_once),
       )
         .then(() => {
           // console.log("Init render done.", results);
@@ -222,18 +264,41 @@ export default class TypstPlugin extends Plugin {
           console.log(e);
         });
       const observer = new MutationObserver((mutations) => {
+        const elements = Array.from(mutations.values())
+          .filter(
+            (mutation) =>
+              mutation.type === "childList" &&
+              mutation.target.nodeType === Node.ELEMENT_NODE,
+          )
+          .map((mutation) => mutation.target as HTMLElement);
         Promise.allSettled(
-          Array.from(mutations.values())
-            .filter(
-              (mutation) =>
-                mutation.type === "childList" &&
-                mutation.target.nodeType === Node.ELEMENT_NODE,
-            )
-            .map((mutation) => mutation.target as HTMLElement)
+          elements
             .filter(
               (element) => element.getAttribute("data-type") === "inline-math",
             )
-            .map(render_once),
+            .map(render_inline_once)
+            .concat(
+              elements
+                .filter((element) => element.parentElement !== null)
+                .map((element) => element.parentElement)
+                .filter(
+                  (element) =>
+                    element.getAttribute("data-type") === "NodeMathBlock",
+                )
+                .map((element) => render_block_once(element)),
+            )
+            .concat(
+              elements
+                .filter(
+                  (element) => element.parentElement?.parentElement !== null,
+                )
+                .map((element) => element.parentElement.parentElement)
+                .filter(
+                  (element) =>
+                    element.getAttribute("data-type") === "NodeMathBlock",
+                )
+                .map((element) => render_block_once(element)),
+            ),
         )
           .then((results) => {
             Array.from(results)
@@ -264,30 +329,6 @@ export default class TypstPlugin extends Plugin {
         console.log("observer disconnected");
       }
       console.log(`Destroy Protyle. id: ${p.id}, block id: ${p.block.id}`);
-    });
-
-    this.eventBus.on("loaded-protyle-dynamic", (event) => {
-      const p = event.detail.protyle;
-      console.log(`Load Protyle Dynamic. id: ${p.id}, block id: ${p.block.id}`);
-    });
-  }
-
-  onLayoutReady(): void {}
-
-  showHelloDialog() {
-    solidDialog({
-      title: `SiYuan ${Constants.SIYUAN_VERSION}`,
-      width: "720px",
-      loader: () => Hello({ app: this.app }),
-    });
-  }
-
-  openSetting(): void {
-    solidDialog({
-      title: "SettingPannel",
-      loader: () => SettingExample({}),
-      width: "800px",
-      height: "600px",
     });
   }
 }
