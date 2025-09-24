@@ -2,21 +2,21 @@
   "name": "siyuan-typst-plugin",
   "author": "Clouder0",
   "url": "https://github.com/clouder0/siyuan-typst-plugin",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "minAppVersion": "3.0.12",
   "disabledInPublish": true,
   "backends": ["all"],
   "frontends": ["all"],
   "displayName": {
-    "en_US": "default",
+    "default": "Typst Plugin",
     "zh_CN": "Typst 插件"
   },
   "description": {
-    "en_US": "default",
+    "default": "Use Typst for Inline Math and Math Block in SiYuan.",
     "zh_CN": "使用 Typst 在 SiYuan 中编写数学公式。"
   },
   "readme": {
-    "en_US": "default",
+    "default": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
   "funding": {
