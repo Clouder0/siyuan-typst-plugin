@@ -1,6 +1,6 @@
 {
   "name": "siyuan-typst-plugin",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "type": "module",
   "description": "Use Typst for Inline Math and Math Block in Siyuan.",
   "repository": "https://github.com/clouder0/siyuan-typst-plugin",
