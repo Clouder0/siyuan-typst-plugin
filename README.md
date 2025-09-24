@@ -21,9 +21,31 @@ You'll get:
 
 ![Showcase](https://cdn.jsdelivr.net/gh/clouder0/siyuan-typst-plugin/asset/typst_showcase.png)
 
+Your content is not limited to Math Environment. You can use `\traw{raw typst content}` to write any Typst.
+
+For example:
+
+```
+\traw{
+#let my_math = $ cases(
+(a + (sqrt(c/(1 + b) + x))/(c + d + 1 + f) = 2)/(d) \
+(a + (sqrt(c/(1 + b) + x))/(c + d + 1 + f) = 2)/(d)) $
+
+#show math.frac: f => math.display(f)
+
+#my_math
+}
+```
+
+Functions, variables or whatever you like!
+
+This should be limited to Block Level Math. Though it's possible to use in Inline Math, alignment issues may occur.
+
+
 ## Current Limitations
 
 - Export/Preview and many corner cases are not supported yet.
+- Importing Typst Packges has not been tested, and may not work properly.
 
 ## Caveats
 

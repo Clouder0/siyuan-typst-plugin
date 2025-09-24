@@ -80,8 +80,11 @@ export default class TypstPlugin extends Plugin {
     const render_block_once = async (element: HTMLElement) => {
       // console.log("block", element);
       const raw_content = element.getAttribute("data-content");
-      const is_typst =
+      const is_raw_typst =
+        raw_content.startsWith("\\traw{") && raw_content.endsWith("}");
+      const is_math_typst =
         raw_content.startsWith("\\t{") && raw_content.endsWith("}");
+      const is_typst = is_raw_typst || is_math_typst;
       if (!is_typst) {
         if (element.getAttribute("data-render-typst") !== null) {
           // remove previous typst content
@@ -90,7 +93,9 @@ export default class TypstPlugin extends Plugin {
         }
         return;
       }
-      const typst_content = decode(raw_content.slice(3, -1));
+      const typst_content = is_raw_typst
+        ? decode(raw_content.slice(6, -1))
+        : decode(raw_content.slice(3, -1));
       const content_hash = SimpleHash.djb2(typst_content)
         .toString()
         .slice(0, 16);
@@ -115,7 +120,14 @@ export default class TypstPlugin extends Plugin {
         return;
       }
 
-      const displayMathTemplate = `
+      const displayMathTemplate = is_raw_typst
+        ? `
+#set page(height: auto, width: auto, margin: 0pt)
+#set text(size: 13pt)
+
+${typst_content}
+`
+        : `
 #set page(height: auto, width: auto, margin: 0pt)
 #set text(size: 13pt)
 
@@ -180,8 +192,11 @@ $ ${typst_content} $
     const render_inline_once = async (element: HTMLElement) => {
       // console.log("inline", element);
       const raw_content = element.getAttribute("data-content");
-      const is_typst =
+      const is_raw_typst =
+        raw_content.startsWith("\\traw{") && raw_content.endsWith("}");
+      const is_math_typst =
         raw_content.startsWith("\\t{") && raw_content.endsWith("}");
+      const is_typst = is_raw_typst || is_math_typst;
       if (!is_typst) {
         if (element.getAttribute("data-render-typst") !== null) {
           // clear previous typst content
@@ -191,7 +206,9 @@ $ ${typst_content} $
         }
         return;
       }
-      const typst_content = decode(raw_content.slice(3, -1));
+      const typst_content = is_raw_typst
+        ? decode(raw_content.slice(6, -1))
+        : decode(raw_content.slice(3, -1));
       const content_hash = SimpleHash.djb2(typst_content)
         .toString()
         .slice(0, 16);
@@ -213,6 +230,12 @@ $ ${typst_content} $
         shadowRoot.innerHTML = lru_cache.get(content_hash);
         return;
       }
+      const inlineRawTemplate = `
+#set page(height: auto, width: auto, margin: 0pt)
+#set text(size: 13pt)
+
+${typst_content}
+`;
       const inlineMathTemplate = `
 #set page(height: auto, width: auto, margin: 0pt)
 #set text(size: 13pt)
@@ -234,6 +257,7 @@ $pin("l1")${typst_content}$
 #metadata(s.final().at("l1")) <label>
 ]
         `;
+      const template = is_raw_typst ? inlineRawTemplate : inlineMathTemplate;
       const dest = `/tmp/${randstr()}.typ`;
       current_parsed += 1;
       if (current_parsed >= 100) {
@@ -245,7 +269,7 @@ $pin("l1")${typst_content}$
       }
       const compiler = context.compiler;
       const renderer = context.renderer;
-      compiler.addSource(dest, inlineMathTemplate);
+      compiler.addSource(dest, template);
       const result = await compiler.compile({
         mainFilePath: dest,
         diagnostics: "full",
@@ -274,28 +298,34 @@ $pin("l1")${typst_content}$
         });
         return svg;
       });
-      const query = await compiler.query({
-        selector: "<label>",
-        mainFilePath: dest,
-      });
-      // parse baselinePosition from query ignore last 2 chars
-      const baselinePosition = parseFloat(query[0].value.slice(0, -2));
-      compiler.unmapShadow(dest);
       shadowRoot.innerHTML = svg;
       const svgElem = shadowRoot.firstElementChild;
       const width = Number.parseFloat(svgElem.getAttribute("data-width"));
       const height = Number.parseFloat(svgElem.getAttribute("data-height"));
       const defaultEm = 11;
-      const shift = height - baselinePosition;
-      const shiftEm = shift / defaultEm;
       svgElem.firstElementChild.innerHTML =
         `path {fill: var(--b3-graph-doc-point); stroke: var(--b3-graph-doc-point);}` +
         svgElem.firstElementChild.innerHTML
           .replace("var(--glyph_fill)", "var(--b3-graph-doc-point)")
           .replace("var(--glyph_stroke)", "var(--b3-graph-doc-point)");
-      svgElem.setAttribute("style", `vertical-align: -${shiftEm}em;`);
-      svgElem.setAttribute("width", `${width / defaultEm}em`);
-      svgElem.setAttribute("height", `${height / defaultEm}em`);
+
+      if (is_raw_typst) {
+        svgElem.setAttribute("width", `${width / defaultEm}em`);
+        svgElem.setAttribute("height", `${height / defaultEm}em`);
+      } else {
+        const query = await compiler.query({
+          selector: "<label>",
+          mainFilePath: dest,
+        });
+        // parse baselinePosition from query ignore last 2 chars
+        const baselinePosition = parseFloat(query[0].value.slice(0, -2));
+        const shift = height - baselinePosition;
+        const shiftEm = shift / defaultEm;
+        svgElem.setAttribute("style", `vertical-align: -${shiftEm}em;`);
+        svgElem.setAttribute("width", `${width / defaultEm}em`);
+        svgElem.setAttribute("height", `${height / defaultEm}em`);
+      }
+      compiler.unmapShadow(dest);
       lru_cache.set(content_hash, shadowRoot.innerHTML);
     };
     this.eventBus.on("loaded-protyle-static", (event) => {
@@ -320,14 +350,14 @@ $pin("l1")${typst_content}$
             Array.from(
               e
                 .querySelectorAll(
-                  `span[data-type='inline-math'][data-content^='\\\\t{'][data-content$='}']`,
+                  `span[data-type='inline-math'][data-content^='\\\\t'][data-content$='}']`,
                 )
                 .values(),
             ),
           )
           .flat() as HTMLElement[];
 
-        const block_selector = `div.render-node[data-type='NodeMathBlock'][data-content^='\\\\t{'][data-content$='}']`;
+        const block_selector = `div.render-node[data-type='NodeMathBlock'][data-content^='\\\\t'][data-content$='}']`;
         const added_block_elems = added_elems
           .map((e) =>
             Array.from(e.querySelectorAll(block_selector).values()).concat(
@@ -362,11 +392,27 @@ $pin("l1")${typst_content}$
           .filter(
             (element) => element.getAttribute("data-type") === "NodeMathBlock",
           );
-        const final_inline = new Set(normal_inline.concat(added_inline_elems));
+        const attribute_changed_elems = mutations
+          .filter((m) => m.type === "attributes")
+          .map((m) => m.target as HTMLElement);
+        const final_inline = new Set(
+          normal_inline
+            .concat(added_inline_elems)
+            .concat(
+              attribute_changed_elems.filter(
+                (elem) => elem.getAttribute("data-type") === "inline-math",
+              ),
+            ),
+        );
         const final_block = new Set(
           normal_first_block
             .concat(normal_second_block)
-            .concat(added_block_elems),
+            .concat(added_block_elems)
+            .concat(
+              attribute_changed_elems.filter(
+                (elem) => elem.getAttribute("data-type") === "NodeMathBlock",
+              ),
+            ),
         );
         Promise.allSettled(
           Array.from(final_inline)

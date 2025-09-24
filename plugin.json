@@ -2,7 +2,7 @@
   "name": "siyuan-typst-plugin",
   "author": "Clouder0",
   "url": "https://github.com/clouder0/siyuan-typst-plugin",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "minAppVersion": "3.0.12",
   "disabledInPublish": true,
   "backends": ["all"],
