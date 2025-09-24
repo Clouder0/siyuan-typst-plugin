@@ -116,11 +116,11 @@ export default class TypstPlugin extends Plugin {
       }
 
       const displayMathTemplate = `
-             #set page(height: auto, width: auto, margin: 0pt)
-             #set text(size: 13pt)
+#set page(height: auto, width: auto, margin: 0pt)
+#set text(size: 13pt)
 
-             $ ${typst_content} $
-             `;
+$ ${typst_content} $
+`;
       const dest = `/tmp/${randstr()}.typ`;
       current_parsed += 1;
       if (current_parsed >= 100) {
@@ -214,25 +214,25 @@ export default class TypstPlugin extends Plugin {
         return;
       }
       const inlineMathTemplate = `
-        #set page(height: auto, width: auto, margin: 0pt)
-        #set text(size: 13pt)
+#set page(height: auto, width: auto, margin: 0pt)
+#set text(size: 13pt)
 
-        #let s = state("t", (:))
+#let s = state("t", (:))
 
-        #let pin(t) = context {
-        let width = measure(line(length: here().position().y)).width
-        s.update(it => it.insert(t, width) + it)
-        }
+#let pin(t) = context {
+let width = measure(line(length: here().position().y)).width
+s.update(it => it.insert(t, width) + it)
+}
 
-        #show math.equation: it => {
-        box(it, inset: (top: 0.5em, bottom: 0.5em))
-        }
+#show math.equation: it => {
+box(it, inset: (top: 0.5em, bottom: 0.5em))
+}
 
-        $pin("l1")${typst_content}$
+$pin("l1")${typst_content}$
 
-        #context [
-        #metadata(s.final().at("l1")) <label>
-        ]
+#context [
+#metadata(s.final().at("l1")) <label>
+]
         `;
       const dest = `/tmp/${randstr()}.typ`;
       current_parsed += 1;
