@@ -19,7 +19,7 @@ integral _1 ^n 1 / x "d" x  = ln n
 
 You'll get:
 
-![Showcase](./asset/typst_showcase.png)
+![Showcase](https://cdn.jsdelivr.net/gh/clouder0/siyuan-typst-plugin/asset/typst_showcase.png)
 
 ## Current Limitations
 
@@ -43,4 +43,4 @@ Versus KaTeX:
 Some sum $\sum _{i=0} ^n \frac{1}{i}$ and display sum $\displaystyle \sum _{i=0}^n \frac{1}{i}$, and matrix $\begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}$and display matrix $\displaystyle \begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \end{pmatrix}$
 ```
 
-![Display Style Showcase](./asset/display-style.png)
+![Display Style Showcase](https://cdn.jsdelivr.net/gh/clouder0/siyuan-typst-plugin/asset/display-style.png)
