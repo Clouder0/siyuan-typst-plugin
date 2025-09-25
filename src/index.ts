@@ -332,7 +332,7 @@ $pin("l1")${typst_content}$
       const p = event.detail.protyle;
       const observer = new MutationObserver((mutations) => {
         // console.log("Observed mutations:", mutations.length);
-        console.log(mutations);
+        // console.log(mutations);
         const mut_elems = mutations.filter(
           (m) => m.target.nodeType === Node.ELEMENT_NODE,
         );
